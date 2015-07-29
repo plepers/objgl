@@ -358,11 +358,11 @@ SecondPass (FILE *fp, ObjModel *mdl)
                 else if (pface->num_elems == 4)
                 {
                     
-                    fprintf (stderr, "Error: no support for quads!\n");
+                    //fprintf (stderr, "Error: no support for quads!\n");
                 }
                 else
                 {
-                    fprintf (stderr, "Error: no support for polygons!\n");
+                    //fprintf (stderr, "Error: no support for polygons!\n");
                 }
                 
                 /* Memory allocation for vertices */

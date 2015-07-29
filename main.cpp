@@ -1,6 +1,7 @@
 
 #include "main.h"
 #include "obj.h"
+#include "collapser.h"
 
 using namespace TCLAP;
 using namespace std;
@@ -15,21 +16,26 @@ int main(int argc, char* argv[])
     ValueArg<string> a_input("i","input","input obj file",true,"","string", cmd );
     ValueArg<string> a_output("o","output","output binary file",true,"","string", cmd );
     
+    SwitchArg o_export("c","collapse", "collapse duplicates", false);
+    
     SwitchArg p_export("p","positions", "export Position", true);
     SwitchArg t_export("t","uvs", "export Uvs", false);
     SwitchArg n_export("n","normals", "export Normals", false);
+    
     cmd.add( p_export );
     cmd.add( t_export );
     cmd.add( n_export );
+    cmd.add( o_export );
     
     cmd.parse( argc, argv );
     
     const char* input =  a_input.getValue().c_str();
     const char* output = a_output.getValue().c_str();
     
-    bool doExportP = p_export.getValue();
-    bool doExportT = t_export.getValue();
-    bool doExportN = n_export.getValue();
+    bool doExportP  = p_export.getValue();
+    bool doExportT  = t_export.getValue();
+    bool doExportN  = n_export.getValue();
+    bool doCollapse = o_export.getValue();
     
     //==================================================
     //                       Load obj file
@@ -61,13 +67,17 @@ int main(int argc, char* argv[])
     int buffersize = vsize * lPolygonVertexCount;
     float *buffer = new float[ buffersize ];
     
-    unsigned short *indices = new unsigned short[ lPolygonVertexCount ];
+    unsigned int *indices = new unsigned int[ lPolygonVertexCount ];
     
     int i, j;
     int c = 0;
     
     for (i = 0; i < objfile.num_faces; ++i)
     {
+        indices[i*3+0] = i*3+0;
+        indices[i*3+1] = i*3+1;
+        indices[i*3+2] = i*3+2;
+        
         for (j = 0; j < 3; ++j)
         {
             
@@ -90,17 +100,48 @@ int main(int argc, char* argv[])
         }
     }
     
+    Collapser *collapser;
+    unsigned short* sIndices = new unsigned short[ lPolygonVertexCount ];
     
+    if( doCollapse ){
+        // collapse duplicated vertices
+        // before generate finals submeshes
+        //
+        
+        collapser = new Collapser( indices, lPolygonVertexCount, lPolygonVertexCount );
+        Stream* stream = collapser->addStream( buffer, vsize );
+        collapser->collapse();
+        
+        buffer = stream->remap;
+        buffersize = collapser->getCollapsedNumVertices()*vsize;
+        
+        for (int i = 0; i< lPolygonVertexCount; i++) {
+            sIndices[i] = (unsigned int)( indices[i] );
+        }
+        
+    }
     
     
 	// save
     FILE* file;
     file = fopen(output, "wb" );
     if(!file) return 79;
-    fwrite((char*)buffer , 1 , buffersize*4, file);
+    
+    if( doCollapse ) {
+        fwrite(&lPolygonVertexCount , 1 , sizeof(int), file);
+        fwrite(&buffersize , 1 , sizeof(int), file);
+        fwrite((char*)sIndices , 1 , lPolygonVertexCount*sizeof(short), file);
+    }
+    
+    fwrite((char*)buffer , 1 , buffersize*sizeof(float), file);
+    
     fclose(file);
     return 0;
 
+    if( doCollapse ){
+        delete collapser;
+        collapser = NULL;
+    }
     
     FreeModel(&objfile);
     

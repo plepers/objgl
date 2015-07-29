@@ -10,7 +10,20 @@
 #define __objgl__collapser__
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
+typedef struct Stream{
+    Stream() :
+    data(NULL),
+    remap(NULL),
+    csize(0)
+    {}
+    
+    float 		 	*data;
+    float 		 	*remap;
+    unsigned int 	csize;
+} Stream;
 
 
 class Collapser
@@ -19,20 +32,16 @@ public:
     Collapser( unsigned int *pIndices, unsigned int pNumIndices, unsigned int pNumVertices );
     ~Collapser();
     
-    void addStream( double *data, unsigned int csize );
+    Stream* addStream( float *data, unsigned int csize );
     void collapse();
+    unsigned int getCollapsedNumVertices(){
+        return mCollapsedNumVertices;
+    }
+    
+    
     
 private:
     
-    struct Stream{
-        Stream() :
-        data(NULL),
-        csize(0)
-        {}
-        
-        double		 	*data;
-        unsigned int 	csize;
-    };
     
     struct StreamArray{
         StreamArray() :
@@ -44,6 +53,7 @@ private:
     };
     
     unsigned int 		mNumVertices;
+    unsigned int 		mCollapsedNumVertices;
     unsigned int 		mNumIndices;
     
     

@@ -10,12 +10,15 @@
 
 
 
+
 Collapser::Collapser(unsigned int *pIndices, unsigned int pNumIndices, unsigned int pNumVertices )
 {
     mIndices 		= pIndices;
     mNumIndices 	= pNumIndices;
     mNumVertices 	= pNumVertices;
     mStreams		= StreamArray();
+    
+    mCollapsedNumVertices = 0;
     
     mRemapTable = new unsigned int[mNumVertices];
     
@@ -39,7 +42,7 @@ Collapser::~Collapser()
 }
 
 
-void Collapser::addStream(double *data, unsigned int csize)
+Stream* Collapser::addStream(float *data, unsigned int csize)
 {
     int numStreams = mStreams.size;
     
@@ -49,6 +52,8 @@ void Collapser::addStream(double *data, unsigned int csize)
     
     newStream->csize = csize;
     newStream->data = data;
+    
+    return newStream;
     
 }
 
@@ -93,7 +98,7 @@ void Collapser::collapse()
                 
                 
                 unsigned int csize	= mStreams.streams[streamIndex]->csize;
-                double *data 	= mStreams.streams[streamIndex]->data;
+                float *data 	= mStreams.streams[streamIndex]->data;
                 
                 for (unsigned int comp = 0; comp < csize; comp++) {
                     
@@ -123,20 +128,89 @@ void Collapser::collapse()
         
     }
     
+    unsigned int newSize = 0;
+    for ( int i = 0; i < mNumVertices; i++) {
+        if( mRemapTable[i] == i ) {
+            newSize++;
+        }
+    }
     
-    unsigned int i;
+    mCollapsedNumVertices = newSize;
     
-    for (i = 0; i < mNumIndices; i++) {
+    
+    for ( int i = 0; i < mNumIndices; i++) {
         mIndices[i] = mRemapTable[ mIndices[i] ];
+        
     }
     
     
-    //    int newLen = 0;
-    //    for (i = 0; i < mNumVertices; i++) {
-    //        if( mRemapTable[i] == i )
-    //            newLen++;
-    //    }
-    //    FBXSDK_printf("complete collapse, num verts : %i \n", newLen );
+    
+    int lRemappedIndex = 0;
+    unsigned int lCurrentIndex = 0;
+    unsigned int lsgNumVertices = 0;
+    unsigned int * tIndices = new unsigned int[ mNumIndices ];
+    
+    int * tIdxMap = new int[mNumIndices];
+    for( int i = 0; i < mNumIndices; i++) {
+        tIdxMap[i] = -1;
+    }
+    
+    for ( int streamIndex = 0; streamIndex < numStreams; streamIndex++ ) {
+        
+        unsigned int csize	= mStreams.streams[streamIndex]->csize;
+        mStreams.streams[streamIndex]->remap = new float[newSize*csize];
+        
+    }
+    
+    for ( int  newIdxPtr = 0; newIdxPtr < mNumIndices; newIdxPtr++) {
+        
+        lCurrentIndex = mIndices[ newIdxPtr ];
+        lRemappedIndex = tIdxMap[ lCurrentIndex ];
+        
+        if( lRemappedIndex == -1 )
+        {
+            
+            lRemappedIndex = lsgNumVertices;
+            tIdxMap[ lCurrentIndex ] = lRemappedIndex;
+            
+            for ( int streamIndex = 0; streamIndex < numStreams; streamIndex++ ) {
+                
+                
+                unsigned int csize	= mStreams.streams[streamIndex]->csize;
+                size_t cbytes = csize*sizeof(float);
+                
+                float* newdata = mStreams.streams[streamIndex]->remap;
+                float* data 	= mStreams.streams[streamIndex]->data;
+                
+                memcpy( &newdata[lsgNumVertices*csize], &data[lCurrentIndex*csize], cbytes );
+                
+            }
+            
+            lsgNumVertices++;
+
+        }
+        
+        tIndices[ newIdxPtr ] = lRemappedIndex;
+
+        
+    }
+    
+    printf("nv match %i %i\n", lsgNumVertices, newSize );
+   
+//    
+//    unsigned int i;
+//    for (i = 0; i < mNumIndices; i++) {
+//        mIndices[i] = mRemapTable[ mIndices[i] ];
+//        
+//    }
+//
+//    int newLen = 0;
+//    for (i = 0; i < mNumVertices; i++) {
+//        if( mRemapTable[i] == i ) {
+//            newLen++;
+//        }
+//    }
+    //    printf("complete collapse, num verts : %i \n", newLen );
     
     
 }
