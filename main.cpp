@@ -128,6 +128,8 @@ int main(int argc, char* argv[])
     if(!file) return 79;
     
     if( doCollapse ) {
+        
+        printf ("nindices : %i \n nvertices : %i\n", lPolygonVertexCount, buffersize );
         fwrite(&lPolygonVertexCount , 1 , sizeof(int), file);
         fwrite(&buffersize , 1 , sizeof(int), file);
         fwrite((char*)sIndices , 1 , lPolygonVertexCount*sizeof(short), file);

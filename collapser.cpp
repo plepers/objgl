@@ -148,7 +148,6 @@ void Collapser::collapse()
     int lRemappedIndex = 0;
     unsigned int lCurrentIndex = 0;
     unsigned int lsgNumVertices = 0;
-    unsigned int * tIndices = new unsigned int[ mNumIndices ];
     
     int * tIdxMap = new int[mNumIndices];
     for( int i = 0; i < mNumIndices; i++) {
@@ -190,7 +189,7 @@ void Collapser::collapse()
 
         }
         
-        tIndices[ newIdxPtr ] = lRemappedIndex;
+        mIndices[ newIdxPtr ] = lRemappedIndex;
 
         
     }
