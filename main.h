@@ -6,6 +6,9 @@
 
 #include "obj.h"
 #include "tclap/CmdLine.h"
+#include "glm/vec3.hpp"
+#include "glm/vec2.hpp"
+#include "glm/gtc/type_ptr.hpp"
 
 #ifdef WIN
 #include <Windows.h>
@@ -17,6 +20,13 @@
 #include <math.h>
 #include <assert.h>
 #endif
+
+
+typedef enum {
+    CHAR = 1,
+    SHORT= 2,
+    INT  = 4
+} IndexFormat;
 
 
 #endif

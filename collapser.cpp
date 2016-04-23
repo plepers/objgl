@@ -14,7 +14,7 @@
 Collapser::Collapser(unsigned int *pIndices, unsigned int pNumIndices, unsigned int pNumVertices )
 {
     mIndices 		= pIndices;
-    mNumIndices 	= pNumIndices;
+    mNumIndices     = pNumIndices;
     mNumVertices 	= pNumVertices;
     mStreams		= StreamArray();
     

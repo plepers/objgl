@@ -17,5 +17,6 @@ set( PROJECT_SOURCES
 )
 
 include_directories("${PROJECT_SOURCE_DIR}/submodules/tclap/include")
+include_directories("${PROJECT_SOURCE_DIR}/submodules/glm")
 
 add_executable(objgl ${PROJECT_SOURCES})
