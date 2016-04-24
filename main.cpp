@@ -191,6 +191,7 @@ int main(int argc, char* argv[])
     mat_map *matMap = new mat_map[256];
     int currMatMap = 0;
     
+    printf("num shapes %lu \n", shapes.size() );
     for( int shapeIndex = 0; shapeIndex < shapes.size(); shapeIndex++ ) {
 
         tinyobj::mesh_t mesh = shapes[i].mesh;
@@ -213,11 +214,12 @@ int main(int argc, char* argv[])
                     continue;
                 }
                 
-                parsed_faces ++;
                 
-                indices[d++] = i*3+0;
-                indices[d++] = i*3+1;
-                indices[d++] = i*3+2;
+                indices[d++] = parsed_faces*3+0;
+                indices[d++] = parsed_faces*3+1;
+                indices[d++] = parsed_faces*3+2;
+                
+                parsed_faces ++;
                 
                 if( doExportB ){
                     computeBinormals( mesh, i, binorms );
