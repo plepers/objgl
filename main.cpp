@@ -1,6 +1,5 @@
 
 #include "main.h"
-#include "obj.h"
 #include "collapser.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
@@ -145,10 +144,6 @@ int main(int argc, char* argv[])
     }
 
 
-    ObjModel objfile = {};
-    if (!ReadOBJModel (input, &objfile))
-        exit (EXIT_FAILURE);
-
     bool has_normals   = shapes[0].mesh.normals.size() > 0;
     bool has_texCoords = shapes[0].mesh.texcoords.size() > 0;
 
@@ -188,54 +183,84 @@ int main(int argc, char* argv[])
     unsigned int *indices = new unsigned int[ lPolygonVertexCount ];
 
     int i, j;
-    int c = 0;
+    int c = 0, d=0;
 
     float *binorms = new float[18];
+    
+    mat_map *matMap = new mat_map[256];
+    int currMatMap = 0;
+    
     for( int shapeIndex = 0; shapeIndex < shapes.size(); shapeIndex++ ) {
 
         tinyobj::mesh_t mesh = shapes[i].mesh;
-
-        for (i = 0; i < mesh.indices.size()/3; i++ )
-        {
-            indices[i*3+0] = i*3+0;
-            indices[i*3+1] = i*3+1;
-            indices[i*3+2] = i*3+2;
-
-            if( doExportB ){
-                computeBinormals( mesh, i, binorms );
-            }
-
-            for (j = 0; j < 3; ++j)
+        int currMatId = -2;
+        unsigned int num_faces = mesh.indices.size()/3;
+        unsigned int parsed_faces = 0;
+        
+        while( parsed_faces < num_faces ){
+            
+            currMatId++;
+            int beginI = d;
+            
+            for (i = 0; i < num_faces; i++ )
             {
-                unsigned int index = mesh.indices[i*3+j];
+                
+                int mat = mesh.material_ids[i];
 
-                buffer[c++] = scaleOpt * mesh.positions[index*3+0];
-                buffer[c++] = scaleOpt * mesh.positions[index*3+1];
-                buffer[c++] = scaleOpt * mesh.positions[index*3+2];
-
-
-                if (doExportT) {
-                    buffer[c++] = mesh.texcoords[index*2+0];
-                    buffer[c++] = mesh.texcoords[index*2+1];
+                if( mat != currMatId ){
+                    continue;
                 }
-
-                if (doExportN) {
-                    buffer[c++] = mesh.normals[index*3+0];
-                    buffer[c++] = mesh.normals[index*3+1];
-                    buffer[c++] = mesh.normals[index*3+2];
-                }
-
+                
+                parsed_faces ++;
+                
+                indices[d++] = i*3+0;
+                indices[d++] = i*3+1;
+                indices[d++] = i*3+2;
+                
                 if( doExportB ){
-                    //tangent
-                    buffer[c++] = binorms[j*6+0];
-                    buffer[c++] = binorms[j*6+1];
-                    buffer[c++] = binorms[j*6+2];
-                    //binormal
-                    buffer[c++] = binorms[j*6+3];
-                    buffer[c++] = binorms[j*6+4];
-                    buffer[c++] = binorms[j*6+5];
+                    computeBinormals( mesh, i, binorms );
                 }
-
+                
+                for (j = 0; j < 3; ++j)
+                {
+                    unsigned int index = mesh.indices[i*3+j];
+                    
+                    buffer[c++] = scaleOpt * mesh.positions[index*3+0];
+                    buffer[c++] = scaleOpt * mesh.positions[index*3+1];
+                    buffer[c++] = scaleOpt * mesh.positions[index*3+2];
+                    
+                    
+                    if (doExportT) {
+                        buffer[c++] = mesh.texcoords[index*2+0];
+                        buffer[c++] = mesh.texcoords[index*2+1];
+                    }
+                    
+                    if (doExportN) {
+                        buffer[c++] = mesh.normals[index*3+0];
+                        buffer[c++] = mesh.normals[index*3+1];
+                        buffer[c++] = mesh.normals[index*3+2];
+                    }
+                    
+                    if( doExportB ){
+                        //tangent
+                        buffer[c++] = binorms[j*6+0];
+                        buffer[c++] = binorms[j*6+1];
+                        buffer[c++] = binorms[j*6+2];
+                        //binormal
+                        buffer[c++] = binorms[j*6+3];
+                        buffer[c++] = binorms[j*6+4];
+                        buffer[c++] = binorms[j*6+5];
+                    }
+                    
+                }
+            }
+            
+            if( d > beginI ){
+                matMap[currMatMap].matId = currMatId;
+                matMap[currMatMap].begintri = beginI/3;
+                matMap[currMatMap].numtris = (d-beginI)/3;
+                
+                currMatMap++;
             }
         }
     }
@@ -310,7 +335,6 @@ int main(int argc, char* argv[])
         collapser = NULL;
     }
 
-    FreeModel(&objfile);
 
 
     return 0;

@@ -6,11 +6,9 @@ project (objgl)
 
 set( PROJECT_SOURCES
 
-  obj.cpp
   collapser.cpp
   main.cpp
 
-  obj.h
   collapser.h
   main.h
 

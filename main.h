@@ -28,6 +28,10 @@ typedef enum {
     INT  = 4
 } IndexFormat;
 
-
+typedef struct mat_map{
+    int matId;
+    unsigned int begintri;
+    unsigned int numtris;
+} mat_map;
 #endif
 
