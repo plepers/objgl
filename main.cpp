@@ -3,21 +3,29 @@
 #include "obj.h"
 #include "collapser.h"
 
+#define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
+#include "tiny_obj_loader.h"
+
+
 using namespace TCLAP;
 using namespace std;
 
 
 // https://github.com/huamulan/OpenGL-tutorial/blob/47edede8273f16b0c89c0573cf2ea198c77814e7/common/tangentspace.cpp
 
-void computeBinormals( ObjModel objfile, int i, float* res )
+void computeBinormals( tinyobj::mesh_t mesh, int i, float* res )
 {
-    glm::vec3 v0 = glm::make_vec3( objfile.vertices[objfile.faces[i].vert_indices[0]].xyzw );
-    glm::vec3 v1 = glm::make_vec3( objfile.vertices[objfile.faces[i].vert_indices[1]].xyzw );
-    glm::vec3 v2 = glm::make_vec3( objfile.vertices[objfile.faces[i].vert_indices[2]].xyzw );
+    int i0 = mesh.indices[i*3+0];
+    int i1 = mesh.indices[i*3+1];
+    int i2 = mesh.indices[i*3+2];
 
-    glm::vec2 uv0 = glm::make_vec2( objfile.texCoords[objfile.faces[i].uvw_indices[0]].uvw );
-    glm::vec2 uv1 = glm::make_vec2( objfile.texCoords[objfile.faces[i].uvw_indices[1]].uvw );
-    glm::vec2 uv2 = glm::make_vec2( objfile.texCoords[objfile.faces[i].uvw_indices[2]].uvw );
+    glm::vec3 v0 = glm::vec3( mesh.positions[i0*3], mesh.positions[i0*3+1], mesh.positions[i0*3+2] );
+    glm::vec3 v1 = glm::vec3( mesh.positions[i1*3], mesh.positions[i1*3+1], mesh.positions[i1*3+2] );
+    glm::vec3 v2 = glm::vec3( mesh.positions[i2*3], mesh.positions[i2*3+1], mesh.positions[i2*3+2] );
+
+    glm::vec2 uv0 = glm::vec2( mesh.texcoords[i0*2], mesh.texcoords[i0*2+1] );
+    glm::vec2 uv1 = glm::vec2( mesh.texcoords[i1*2], mesh.texcoords[i1*2+1] );
+    glm::vec2 uv2 = glm::vec2( mesh.texcoords[i2*2], mesh.texcoords[i2*2+1] );
 
     // Edges of the triangle : postion delta
     glm::vec3 deltaPos1 = v1-v0;
@@ -34,7 +42,9 @@ void computeBinormals( ObjModel objfile, int i, float* res )
 
     for (unsigned int j=0; j<3; j+=1 )
     {
-        glm::vec3 n = glm::make_vec3( objfile.normals[objfile.faces[i].norm_indices[j]].ijk );
+        i0 = mesh.indices[i*3+j];
+
+        glm::vec3 n = glm::vec3( mesh.normals[i0*3], mesh.normals[i0*3+1], mesh.normals[i0*3+2] );
         glm::vec3 t;
         glm::vec3 b;
 
@@ -81,7 +91,7 @@ char* indicesToU32( unsigned int *indices, unsigned int length ){
 int main(int argc, char* argv[])
 {
 
-    CmdLine cmd("objgl - export obj to opengl buffers", ' ', "0.1");
+    CmdLine cmd("objgl - export obj to opengl buffers", ' ', "0.2");
 
     ValueArg<string> a_input ( "i", "input","input obj file",     true,  "", "string", cmd );
     ValueArg<string> a_output( "o", "output","output binary file",true,  "", "string", cmd );
@@ -120,22 +130,44 @@ int main(int argc, char* argv[])
     //==================================================
 
 
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+
+    std::string err;
+    bool ret = tinyobj::LoadObj(shapes, materials, err, input);
+
+    if (!err.empty()) { // `err` may contain warning message.
+        std::cerr << err << std::endl;
+    }
+
+    if (!ret) {
+        exit(1);
+    }
+
+
     ObjModel objfile = {};
     if (!ReadOBJModel (input, &objfile))
         exit (EXIT_FAILURE);
 
+    bool has_normals   = shapes[0].mesh.normals.size() > 0;
+    bool has_texCoords = shapes[0].mesh.texcoords.size() > 0;
 
-    if( ! objfile.has_normals ) 	  doExportN = false;
-    if( ! objfile.has_texCoords ) doExportT = false;
+    if( ! has_normals )    doExportN = false;
+    if( ! has_texCoords )  doExportT = false;
 
-    if( ! objfile.has_normals && ! objfile.has_texCoords )
+    if( ! has_normals || ! has_texCoords )
         doExportB = false;
 
 
 
     // inline buffers
 
-    int lPolygonVertexCount = objfile.num_faces * 3;
+    int lPolygonVertexCount = 0;
+    for (int i = 0; i<shapes.size(); i++ ) {
+        lPolygonVertexCount += shapes[i].mesh.indices.size();
+    }
+
+//    int lPolygonVertexCount = objfile.num_faces * 3;
 
 
     int vsize = 3;
@@ -159,49 +191,55 @@ int main(int argc, char* argv[])
     int c = 0;
 
     float *binorms = new float[18];
+    for( int shapeIndex = 0; shapeIndex < shapes.size(); shapeIndex++ ) {
 
-    for (i = 0; i < objfile.num_faces; ++i)
-    {
-        indices[i*3+0] = i*3+0;
-        indices[i*3+1] = i*3+1;
-        indices[i*3+2] = i*3+2;
+        tinyobj::mesh_t mesh = shapes[i].mesh;
 
-        if( doExportB ){
-            computeBinormals( objfile, i, binorms );
-        }
-
-        for (j = 0; j < 3; ++j)
+        for (i = 0; i < mesh.indices.size()/3; i++ )
         {
-
-            buffer[c++] = scaleOpt * objfile.vertices[objfile.faces[i].vert_indices[j]].xyzw[0];
-            buffer[c++] = scaleOpt * objfile.vertices[objfile.faces[i].vert_indices[j]].xyzw[1];
-            buffer[c++] = scaleOpt * objfile.vertices[objfile.faces[i].vert_indices[j]].xyzw[2];
-
-
-            if (doExportT) {
-                buffer[c++] = objfile.texCoords[objfile.faces[i].uvw_indices[j]].uvw[0];
-                buffer[c++] = objfile.texCoords[objfile.faces[i].uvw_indices[j]].uvw[1];
-            }
-
-            if (doExportN) {
-                buffer[c++] = objfile.normals[objfile.faces[i].norm_indices[j]].ijk[0];
-                buffer[c++] = objfile.normals[objfile.faces[i].norm_indices[j]].ijk[1];
-                buffer[c++] = objfile.normals[objfile.faces[i].norm_indices[j]].ijk[2];
-            }
+            indices[i*3+0] = i*3+0;
+            indices[i*3+1] = i*3+1;
+            indices[i*3+2] = i*3+2;
 
             if( doExportB ){
-                //tangent
-                buffer[c++] = binorms[j*6+0];
-                buffer[c++] = binorms[j*6+1];
-                buffer[c++] = binorms[j*6+2];
-                //binormal
-                buffer[c++] = binorms[j*6+3];
-                buffer[c++] = binorms[j*6+4];
-                buffer[c++] = binorms[j*6+5];
+                computeBinormals( mesh, i, binorms );
             }
 
+            for (j = 0; j < 3; ++j)
+            {
+                unsigned int index = mesh.indices[i*3+j];
+
+                buffer[c++] = scaleOpt * mesh.positions[index*3+0];
+                buffer[c++] = scaleOpt * mesh.positions[index*3+1];
+                buffer[c++] = scaleOpt * mesh.positions[index*3+2];
+
+
+                if (doExportT) {
+                    buffer[c++] = mesh.texcoords[index*2+0];
+                    buffer[c++] = mesh.texcoords[index*2+1];
+                }
+
+                if (doExportN) {
+                    buffer[c++] = mesh.normals[index*3+0];
+                    buffer[c++] = mesh.normals[index*3+1];
+                    buffer[c++] = mesh.normals[index*3+2];
+                }
+
+                if( doExportB ){
+                    //tangent
+                    buffer[c++] = binorms[j*6+0];
+                    buffer[c++] = binorms[j*6+1];
+                    buffer[c++] = binorms[j*6+2];
+                    //binormal
+                    buffer[c++] = binorms[j*6+3];
+                    buffer[c++] = binorms[j*6+4];
+                    buffer[c++] = binorms[j*6+5];
+                }
+
+            }
         }
     }
+
 
     Collapser *collapser;
     unsigned int* sIndices = new unsigned int[ lPolygonVertexCount ];
@@ -230,16 +268,16 @@ int main(int argc, char* argv[])
     FILE* file;
     file = fopen(output, "wb" );
     if(!file) return 79;
-    
+
     IndexFormat iFormat;
-    
+
     if( numVertices > 0xFFFF )
         iFormat = INT;
     else if( numVertices > 0xFF )
         iFormat = SHORT;
     else
         iFormat = CHAR;
-    
+
     unsigned int flags =
         ((doExportP ? 1 : 0)     ) |
         ((doExportT ? 1 : 0) << 1) |
@@ -253,7 +291,7 @@ int main(int argc, char* argv[])
         fwrite(&lPolygonVertexCount , 1 , sizeof(int), file);
         fwrite(&buffersize ,          1 , sizeof(int), file);
         fwrite(&flags ,               1 , sizeof(int), file);
-        
+
         if( iFormat == INT )
             fwrite( indicesToU32(sIndices, lPolygonVertexCount) , 1 , lPolygonVertexCount*sizeof(int), file);
         else if( iFormat == SHORT )
