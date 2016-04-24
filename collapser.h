@@ -12,18 +12,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <vector>
 
-typedef struct Stream{
-    Stream() :
-    data(NULL),
-    remap(NULL),
-    csize(0)
-    {}
-    
-    float 		 	*data;
-    float 		 	*remap;
-    unsigned int 	csize;
-} Stream;
+
 
 
 class Collapser
@@ -32,35 +23,44 @@ public:
     Collapser( unsigned int *pIndices, unsigned int pNumIndices, unsigned int pNumVertices );
     ~Collapser();
     
-    Stream* addStream( float *data, unsigned int csize );
+    void addStream( char *data, unsigned int csize );
     void collapse();
+    
     unsigned int getCollapsedNumVertices(){
         return mCollapsedNumVertices;
     }
     
-    
-    
 private:
     
+    typedef unsigned hash;
     
-    struct StreamArray{
-        StreamArray() :
-        size(0)
+    struct Stream{
+        Stream() :
+        bytes(NULL),
+        remap(NULL),
+        csize(0)
         {}
         
-        Stream*			streams[16];
-        unsigned int 	size;
+        char 	*bytes;
+        char 	*remap;
+        unsigned int 	csize;
     };
+    
+    hash                hashVertex( char *vPtr, int len );
+    void                remap();
+    void                logStats();
     
     unsigned int 		mNumVertices;
     unsigned int 		mCollapsedNumVertices;
+    unsigned int 		mVertexSize;
     unsigned int 		mNumIndices;
     
     
-    StreamArray			mStreams;
+    std::vector<Stream*>	mStreams;
     unsigned int 		*mIndices;
     unsigned int 		*mRemapTable;
     
+
     
     
     void scanStream( unsigned int index, unsigned int comp );

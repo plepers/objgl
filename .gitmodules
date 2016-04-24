@@ -6,4 +6,4 @@
 	url = https://github.com/g-truc/glm.git
 [submodule "submodules/tinyobjloader"]
 	path = submodules/tinyobjloader
-	url = https://github.com/syoyo/tinyobjloader.git
+	url = https://github.com/plepers/tinyobjloader.git

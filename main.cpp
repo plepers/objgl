@@ -90,7 +90,7 @@ char* indicesToU32( unsigned int *indices, unsigned int length ){
 int main(int argc, char* argv[])
 {
 
-    CmdLine cmd("objgl - export obj to opengl buffers", ' ', "0.2");
+    CmdLine cmd("objgl - export obj to opengl buffers", ' ', "0.3");
 
     ValueArg<string> a_input ( "i", "input","input obj file",     true,  "", "string", cmd );
     ValueArg<string> a_output( "o", "output","output binary file",true,  "", "string", cmd );
@@ -179,6 +179,7 @@ int main(int argc, char* argv[])
     int numVertices = lPolygonVertexCount;
     int buffersize = vsize * lPolygonVertexCount;
     float *buffer = new float[ buffersize ];
+    //printf("alloc buffer with %i bytes", buffersize*4);
 
     unsigned int *indices = new unsigned int[ lPolygonVertexCount ];
 
@@ -201,6 +202,7 @@ int main(int argc, char* argv[])
             
             currMatId++;
             int beginI = d;
+            
             
             for (i = 0; i < num_faces; i++ )
             {
@@ -255,38 +257,41 @@ int main(int argc, char* argv[])
                 }
             }
             
-            if( d > beginI ){
+            if( d > beginI && currMatId > -1 ){
                 matMap[currMatMap].matId = currMatId;
                 matMap[currMatMap].begintri = beginI/3;
                 matMap[currMatMap].numtris = (d-beginI)/3;
                 
                 currMatMap++;
+                
             }
         }
     }
 
-
+    //          collapse
+    // ==================================
+    
     Collapser *collapser;
-    unsigned int* sIndices = new unsigned int[ lPolygonVertexCount ];
+    
+    // collapse duplicated vertices
+    // before generate finals submeshes
+    //
+    
+    collapser = new Collapser( indices, lPolygonVertexCount, lPolygonVertexCount );
+    collapser->addStream( (char*)buffer, vsize*sizeof(float) );
+    collapser->collapse();
+    
+    numVertices = collapser->getCollapsedNumVertices();
+    buffersize = collapser->getCollapsedNumVertices()*vsize;
+    
+    
+    delete collapser;
+    collapser = NULL;
 
-    if( doCollapse ){
-        // collapse duplicated vertices
-        // before generate finals submeshes
-        //
 
-        collapser = new Collapser( indices, lPolygonVertexCount, lPolygonVertexCount );
-        Stream* stream = collapser->addStream( buffer, vsize );
-        collapser->collapse();
-
-        buffer = stream->remap;
-        numVertices = collapser->getCollapsedNumVertices();
-        buffersize = collapser->getCollapsedNumVertices()*vsize;
-
-        for (int i = 0; i< lPolygonVertexCount; i++) {
-            sIndices[i] = (unsigned int)( indices[i] );
-        }
-
-    }
+    
+    // Write output
+    // =====================================
 
 
 	// save
@@ -309,21 +314,40 @@ int main(int argc, char* argv[])
         ((doExportN ? 1 : 0) << 2) |
         ((doExportB ? 1 : 0) << 3) |
         (char)iFormat << 4;
+    
+    
 
-    if( doCollapse ) {
+    printf (" nindices : %i \n nvertices : %i\n flags : %i \n iformat %i - %i \n", lPolygonVertexCount, numVertices, flags, iFormat, buffersize );
+    // write headers
 
-        printf ("nindices : %i \n nvertices : %i\n flags : %i \n iformat %i - %i\n", lPolygonVertexCount, buffersize, flags, iFormat, numVertices );
-        fwrite(&lPolygonVertexCount , 1 , sizeof(int), file);
-        fwrite(&buffersize ,          1 , sizeof(int), file);
-        fwrite(&flags ,               1 , sizeof(int), file);
-
-        if( iFormat == INT )
-            fwrite( indicesToU32(sIndices, lPolygonVertexCount) , 1 , lPolygonVertexCount*sizeof(int), file);
-        else if( iFormat == SHORT )
-            fwrite( indicesToU16(sIndices, lPolygonVertexCount) , 1 , lPolygonVertexCount*sizeof(short), file);
-        else
-            fwrite( indicesToU8(sIndices, lPolygonVertexCount) , 1 , lPolygonVertexCount*sizeof(char), file);
+    fwrite(&lPolygonVertexCount , 1 , sizeof(int), file);
+    fwrite(&buffersize  ,         1 , sizeof(int), file);
+    fwrite(&flags ,               1 , sizeof(int), file);
+    
+    
+    // write mats
+    
+    fwrite(&currMatMap ,          1 , sizeof(int), file);
+    for (int cm=0; cm< currMatMap; cm++ ) {
+        mat_map mmat = matMap[cm];
+        if( mmat.matId == -1 ) continue;
+        std::string name = materials[mmat.matId].name;
+        unsigned int nsize = name.size();
+        fwrite(&nsize, sizeof(int), 1, file );
+        fwrite(name.c_str(), sizeof(char), name.size(), file );
+        //fwrite( 0, 1, 1, file );
+        fwrite(&mmat.begintri, 1,sizeof(int), file );
+        fwrite(&mmat.numtris,  1,sizeof(int), file );
     }
+    
+    // write buffers
+    if( iFormat == INT )
+        fwrite( indicesToU32(indices, lPolygonVertexCount) , 1 , lPolygonVertexCount*sizeof(int), file);
+    else if( iFormat == SHORT )
+        fwrite( indicesToU16(indices, lPolygonVertexCount) , 1 , lPolygonVertexCount*sizeof(short), file);
+    else
+        fwrite( indicesToU8(indices, lPolygonVertexCount) , 1 , lPolygonVertexCount*sizeof(char), file);
+    
 
     fwrite((char*)buffer , 1 , buffersize*sizeof(float), file);
 
