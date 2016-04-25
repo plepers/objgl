@@ -19,19 +19,19 @@ float rounded( float n ){
 
 // https://github.com/huamulan/OpenGL-tutorial/blob/47edede8273f16b0c89c0573cf2ea198c77814e7/common/tangentspace.cpp
 
-void computeBinormals( tinyobj::mesh_t mesh, int i, float* res )
+inline void computeBinormals( tinyobj::mesh_t *mesh, int i, float* res )
 {
-    int i0 = mesh.indices[i*3+0];
-    int i1 = mesh.indices[i*3+1];
-    int i2 = mesh.indices[i*3+2];
+    int i0 = mesh->indices[i*3+0];
+    int i1 = mesh->indices[i*3+1];
+    int i2 = mesh->indices[i*3+2];
 
-    glm::vec3 v0 = glm::vec3( mesh.positions[i0*3], mesh.positions[i0*3+1], mesh.positions[i0*3+2] );
-    glm::vec3 v1 = glm::vec3( mesh.positions[i1*3], mesh.positions[i1*3+1], mesh.positions[i1*3+2] );
-    glm::vec3 v2 = glm::vec3( mesh.positions[i2*3], mesh.positions[i2*3+1], mesh.positions[i2*3+2] );
+    glm::vec3 v0 = glm::make_vec3( &mesh->positions[i0*3] );
+    glm::vec3 v1 = glm::make_vec3( &mesh->positions[i1*3] );
+    glm::vec3 v2 = glm::make_vec3( &mesh->positions[i2*3] );
 
-    glm::vec2 uv0 = glm::vec2( mesh.texcoords[i0*2], mesh.texcoords[i0*2+1] );
-    glm::vec2 uv1 = glm::vec2( mesh.texcoords[i1*2], mesh.texcoords[i1*2+1] );
-    glm::vec2 uv2 = glm::vec2( mesh.texcoords[i2*2], mesh.texcoords[i2*2+1] );
+    glm::vec2 uv0 = glm::make_vec2( &mesh->texcoords[i0*2] );
+    glm::vec2 uv1 = glm::make_vec2( &mesh->texcoords[i1*2] );
+    glm::vec2 uv2 = glm::make_vec2( &mesh->texcoords[i2*2] );
 
     // Edges of the triangle : postion delta
     glm::vec3 deltaPos1 = v1-v0;
@@ -48,9 +48,9 @@ void computeBinormals( tinyobj::mesh_t mesh, int i, float* res )
 
     for (unsigned int j=0; j<3; j+=1 )
     {
-        i0 = mesh.indices[i*3+j];
+        i0 = mesh->indices[i*3+j];
 
-        glm::vec3 n = glm::vec3( mesh.normals[i0*3], mesh.normals[i0*3+1], mesh.normals[i0*3+2] );
+        glm::vec3 n = glm::make_vec3( &mesh->normals[i0*3] );
         glm::vec3 t;
         glm::vec3 b;
 
@@ -195,7 +195,7 @@ int main(int argc, char* argv[])
     printf("num shapes %lu \n", shapes.size() );
     for( int shapeIndex = 0; shapeIndex < shapes.size(); shapeIndex++ ) {
 
-        tinyobj::mesh_t mesh = shapes[i].mesh;
+        tinyobj::mesh_t mesh = shapes[shapeIndex].mesh;
         int currMatId = -2;
         unsigned int num_faces = mesh.indices.size()/3;
         unsigned int parsed_faces = 0;
@@ -223,7 +223,7 @@ int main(int argc, char* argv[])
                 parsed_faces ++;
                 
                 if( doExportB ){
-                    computeBinormals( mesh, i, binorms );
+                    computeBinormals( &mesh, i, binorms );
                 }
                 
                 for (j = 0; j < 3; ++j)
