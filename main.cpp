@@ -10,6 +10,13 @@ using namespace TCLAP;
 using namespace std;
 
 
+float rounded( float n ){
+//    return n;
+    n = round(n*100000.0) / 100000.0;
+    if( n == -0.0 ) n = 0.0;
+    return n;
+}
+
 // https://github.com/huamulan/OpenGL-tutorial/blob/47edede8273f16b0c89c0573cf2ea198c77814e7/common/tangentspace.cpp
 
 void computeBinormals( tinyobj::mesh_t mesh, int i, float* res )
@@ -36,7 +43,7 @@ void computeBinormals( tinyobj::mesh_t mesh, int i, float* res )
 
     float r = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
 
-    glm::vec3 tangent = (deltaPos1 * deltaUV2.y   - deltaPos2 * deltaUV1.y)*r;
+//    glm::vec3 tangent = (deltaPos1 * deltaUV2.y   - deltaPos2 * deltaUV1.y)*r;
     glm::vec3 bitangent = (deltaPos2 * deltaUV1.x   - deltaPos1 * deltaUV2.x)*r;
 
     for (unsigned int j=0; j<3; j+=1 )
@@ -47,21 +54,15 @@ void computeBinormals( tinyobj::mesh_t mesh, int i, float* res )
         glm::vec3 t;
         glm::vec3 b;
 
-        // Gram-Schmidt orthogonalize
-        t = glm::normalize(tangent   - n * glm::dot(n, tangent  ));
-        b = glm::normalize(bitangent - n * glm::dot(n, bitangent));
-
-        // Calculate handedness
-        if (glm::dot(glm::cross(n, t), b) < 0.0f){
-            t = t * -1.0f;
-        }
-
-        res[j*6+0] = t.x;
-        res[j*6+1] = t.y;
-        res[j*6+2] = t.z;
-        res[j*6+3] = b.x;
-        res[j*6+4] = b.y;
-        res[j*6+5] = b.z;
+        t = glm::normalize( glm::cross(n, bitangent) );
+        b = glm::normalize( glm::cross(n, t ) );
+        
+        res[j*6+0] = rounded( t.x );
+        res[j*6+1] = rounded( t.y );
+        res[j*6+2] = rounded( t.z );
+        res[j*6+3] = rounded( b.x );
+        res[j*6+4] = rounded( b.y );
+        res[j*6+5] = rounded( b.z );
 
     }
 }
