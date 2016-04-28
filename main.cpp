@@ -12,7 +12,7 @@ using namespace std;
 
 float rounded( float n ){
 //    return n;
-    n = round(n*100000.0) / 100000.0;
+    n = round(n*100.0) / 100.0;
     if( n == -0.0 ) n = 0.0;
     return n;
 }
@@ -123,8 +123,8 @@ int main(int argc, char* argv[])
     bool doExportN  = n_export.getValue();
     bool doExportB  = b_export.getValue();
     bool doCollapse = o_export.getValue();
-    bool doCompress = C_export.getValue();
 
+    
     //==================================================
     //                       Load obj file
     //==================================================
@@ -180,7 +180,6 @@ int main(int argc, char* argv[])
     int numVertices = lPolygonVertexCount;
     int buffersize = vsize * lPolygonVertexCount;
     float *buffer = new float[ buffersize ];
-    //printf("alloc buffer with %i bytes", buffersize*4);
 
     unsigned int *indices = new unsigned int[ lPolygonVertexCount ];
 
@@ -191,6 +190,8 @@ int main(int argc, char* argv[])
     
     mat_map *matMap = new mat_map[256];
     int currMatMap = 0;
+    
+    bounds lBounds = bounds();
     
     printf("num shapes %lu \n", shapes.size() );
     for( int shapeIndex = 0; shapeIndex < shapes.size(); shapeIndex++ ) {
@@ -230,9 +231,15 @@ int main(int argc, char* argv[])
                 {
                     unsigned int index = mesh.indices[i*3+j];
                     
-                    buffer[c++] = scaleOpt * mesh.positions[index*3+0];
-                    buffer[c++] = scaleOpt * mesh.positions[index*3+1];
-                    buffer[c++] = scaleOpt * mesh.positions[index*3+2];
+                    float px = scaleOpt * mesh.positions[index*3+0];
+                    float py = scaleOpt * mesh.positions[index*3+1];
+                    float pz = scaleOpt * mesh.positions[index*3+2];
+                    
+                    fillBounds( lBounds, px, py, pz );
+
+                    buffer[c++] = px;
+                    buffer[c++] = py;
+                    buffer[c++] = pz;
                     
                     
                     if (doExportT) {
@@ -247,14 +254,8 @@ int main(int argc, char* argv[])
                     }
                     
                     if( doExportB ){
-                        //tangent
-                        buffer[c++] = binorms[j*6+0];
-                        buffer[c++] = binorms[j*6+1];
-                        buffer[c++] = binorms[j*6+2];
-                        //binormal
-                        buffer[c++] = binorms[j*6+3];
-                        buffer[c++] = binorms[j*6+4];
-                        buffer[c++] = binorms[j*6+5];
+                        memcpy( &buffer[c], &binorms[j*6], 6*sizeof(float) );
+                        c += 6;
                     }
                     
                 }
@@ -326,6 +327,7 @@ int main(int argc, char* argv[])
     fwrite(&lPolygonVertexCount , 1 , sizeof(int), file);
     fwrite(&buffersize  ,         1 , sizeof(int), file);
     fwrite(&flags ,               1 , sizeof(int), file);
+    fwrite(&lBounds ,             1 , sizeof(bounds), file);
     
     
     // write mats

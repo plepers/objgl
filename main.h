@@ -33,5 +33,35 @@ typedef struct mat_map{
     unsigned int begintri;
     unsigned int numtris;
 } mat_map;
+
+
+typedef struct bounds{
+    float minX;
+    float minY;
+    float minZ;
+    float maxX;
+    float maxY;
+    float maxZ;
+    bounds():
+        minX(0),
+        minY(0),
+        minZ(0),
+        maxX(0),
+        maxY(0),
+        maxZ(0)
+    {}
+} bounds;
+
+
+inline void fillBounds( bounds &b, float x, float y, float z ){
+    b.minX = fmin( x, b.minX );
+    b.minY = fmin( y, b.minY );
+    b.minZ = fmin( z, b.minZ );
+    b.maxX = fmax( x, b.maxX );
+    b.maxY = fmax( y, b.maxY );
+    b.maxZ = fmax( z, b.maxZ );
+}
+
+
 #endif
 

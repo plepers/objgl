@@ -9,6 +9,80 @@
 #include "collapser.h"
 
 
+// Multi threaded bucket collapsing
+void* collapseBucket(  void* in )
+{
+    
+    COLLAPSE_PARAM* params = (COLLAPSE_PARAM*) in;
+    
+    
+    unsigned int *mRemapTable = params->mRemapTable;
+    char *interleaved = params->interleaved;
+    unsigned int mVertexSize = params->mVertexSize;
+    
+    int lindexA, lindexB;
+    unsigned int lCurrent = 0;
+    unsigned int lCompare = 0;
+    
+    int* bucket;
+    
+    
+    for( hash i = 0; i < params->bcount; i++ )
+    {
+        bucket = params->buckets[i+params->boffset];
+        int numVerts = params->bucketCounts[i+params->boffset];
+        
+        
+        
+        if( numVerts < 2 )
+        {
+            continue;
+        }
+        
+        for ( lindexA = 0; lindexA < numVerts-1; lindexA++ )
+        {
+            
+            lCurrent = bucket[lindexA];
+            
+            if( mRemapTable[lCurrent] != lCurrent )
+            {
+                // this vertex is already remapped to a previous one
+                // skip
+                // ----
+                continue;
+            }
+            
+            // compare current with all following vertices
+            // -----
+            for ( lindexB = lindexA+1; lindexB < numVerts; lindexB++ )
+            {
+                lCompare = bucket[lindexB];
+                
+                if(
+                   memcmp(
+                          &interleaved[lCurrent*mVertexSize],
+                          &interleaved[lCompare*mVertexSize],
+                          mVertexSize
+                          ) == 0
+                   )
+                {
+                    // vertices are equals
+                    
+                    mRemapTable[lCompare] = lCurrent;
+                };
+                
+                
+            }
+            
+        }
+        
+    }
+
+    
+    return NULL;
+}
+
+
 
 Collapser::Collapser(unsigned int *pIndices, unsigned int pNumIndices, unsigned int pNumVertices )
 {
@@ -59,16 +133,12 @@ void Collapser::addStream(char *bytes, unsigned int numbytes)
 void Collapser::collapse()
 {
     
-    
-    
-    const int lNumBuckets = 256;
-    
+
     
     int numStreams = mStreams.size();
     
     
     unsigned int lCurrent = 0;
-    unsigned int lCompare = 0;
     
     
     // first create an interleaved version of geometry
@@ -96,8 +166,8 @@ void Collapser::collapse()
     hash *hashList = new hash[ mNumVertices ];
     
     
-    unsigned int *bucketCounts = new unsigned int[ lNumBuckets ];
-    memset( bucketCounts, 0, lNumBuckets * sizeof(unsigned int) );
+    unsigned int *bucketCounts = new unsigned int[ NBUCKETS ];
+    memset( bucketCounts, 0, NBUCKETS * sizeof(unsigned int) );
     
     
     // hash all vertices, store hashes and count vertices per buckets
@@ -106,7 +176,7 @@ void Collapser::collapse()
     for ( lCurrent = 0; lCurrent < mNumVertices; lCurrent++ )
     {
         hash vHash = hashVertex( (char*) &interleaved[lCurrent * mVertexSize], mVertexSize );
-        vHash = vHash % lNumBuckets;
+        vHash = vHash % NBUCKETS;
         hashList[lCurrent] = vHash;
         bucketCounts[vHash] ++;
     }
@@ -114,16 +184,16 @@ void Collapser::collapse()
     
     // allocate buckets
     //
-    buckets = (int **) malloc( lNumBuckets * sizeof(void *) );
+    buckets = (int **) malloc( NBUCKETS * sizeof(void *) );
     
-    for( hash i = 0; i < lNumBuckets; i++ )
+    for( hash i = 0; i < NBUCKETS; i++ )
     {
         buckets[i] = new int[ bucketCounts[i] ];
     }
     
     // for each buckets, create le list of corresponding vertex indices
     //
-    memset( bucketCounts, 0, lNumBuckets * sizeof(unsigned int) );
+    memset( bucketCounts, 0, NBUCKETS * sizeof(unsigned int) );
     
     for ( lCurrent = 0; lCurrent < mNumVertices; lCurrent++ )
     {
@@ -137,69 +207,36 @@ void Collapser::collapse()
     // collapse each buckets
     //
     
-    int lindexA, lindexB;
-    int* bucket;
     
-    mCollapsedNumVertices = mNumVertices;
+    int bPerThreads = NBUCKETS / MAX_THREADS;
+    pthread_t threads[MAX_THREADS];
+    COLLAPSE_PARAM* cParams = (COLLAPSE_PARAM*) malloc( MAX_THREADS * sizeof(COLLAPSE_PARAM));
     
-    for( hash i = 0; i < lNumBuckets; i++ )
-    {
-        bucket = buckets[i];
-        int numVerts = bucketCounts[i];
-        
-        
-        
-        if( numVerts < 2 )
-        {
-            continue;
-        }
-        
-        for ( lindexA = 0; lindexA < numVerts-1; lindexA++ )
-        {
-            
-            lCurrent = bucket[lindexA];
-            
-            if( mRemapTable[lCurrent] != lCurrent )
-            {
-                // this vertex is already remapped to a previous one
-                // skip
-                // ----
-                continue;
-            }
-            
-            // compare current with all following vertices
-            // -----
-            for ( lindexB = lindexA+1; lindexB < numVerts; lindexB++ )
-            {
-                lCompare = bucket[lindexB];
-                
-                if(
-                   memcmp(
-                          &interleaved[lCurrent*mVertexSize],
-                          &interleaved[lCompare*mVertexSize],
-                          mVertexSize
-                          ) == 0
-                   )
-                {
-                    // vertices are equals
-                    
-                    mRemapTable[lCompare] = lCurrent;
-                    mCollapsedNumVertices--;
-                };
-                
-                
-            }
-            
-        }
-        
+    for ( int i = 0; i < MAX_THREADS; i++ ) {
+        cParams[i].buckets = buckets;
+        cParams[i].bucketCounts = bucketCounts;
+        cParams[i].boffset = i*bPerThreads;
+        cParams[i].bcount = bPerThreads;
+        cParams[i].interleaved = interleaved;
+        cParams[i].mVertexSize = mVertexSize;
+        cParams[i].mRemapTable = mRemapTable;
+        int rc = pthread_create(&threads[i], NULL, collapseBucket, (void *) &cParams[i]);
+        assert(0 == rc);
         
     }
     
     
+    for (int i=0; i<MAX_THREADS; ++i) {
+        // block until thread i completes
+        int rc = pthread_join(threads[i], NULL);
+        assert(0 == rc);
+    }
+
+    
     
     // free memory
     
-    for( int i = 0; i < lNumBuckets; i++ )
+    for( int i = 0; i < NBUCKETS; i++ )
     {
         delete buckets[i];
     }
@@ -209,10 +246,17 @@ void Collapser::collapse()
     delete hashList;
     
     
-    //FBXSDK_printf("complete collapse %i verts in %li ms", mNumVertices, elapsed );
+    // calculate new length
+    // =====================
+    
+    mCollapsedNumVertices = 0;
+    for (int i = 0; i < mNumVertices; i++) {
+        if( mRemapTable[i] == i ) mCollapsedNumVertices++;
+    }
+    
     
     // remap indices
-    
+	// =============
     remap();
     
     logStats();
@@ -300,7 +344,7 @@ void Collapser::remap()
 /*
  * FNV hash
  */
-Collapser::hash Collapser::hashVertex( char * vPtr, int len )
+hash Collapser::hashVertex( char * vPtr, int len )
 {
     unsigned char *p = (unsigned char*) vPtr;
     hash h = 2166136261;

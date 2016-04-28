@@ -14,6 +14,33 @@
 #include <string.h>
 #include <vector>
 
+#include <pthread.h>
+#include <assert.h>
+
+#define NBUCKETS 256
+#define MAX_THREADS 16
+
+
+
+typedef unsigned hash;
+
+
+typedef struct collapse_params
+{
+    int ** buckets;
+    unsigned int *bucketCounts;
+    unsigned int *mRemapTable;
+    char *interleaved;
+    int boffset;
+    int bcount;
+    unsigned int 		mVertexSize;
+
+} COLLAPSE_PARAM;
+
+
+
+void* collapseBucket( void* in );
+
 
 
 
@@ -32,7 +59,6 @@ public:
     
 private:
     
-    typedef unsigned hash;
     
     struct Stream{
         Stream() :
